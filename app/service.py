@@ -105,7 +105,7 @@ def resolve_workspace_dir(preferred: str | None = None) -> str:
     env_home = os.environ.get("PS26237_HOME")
     if env_home:
         return env_home
-    is_serverless = bool(os.environ.get("NETLIFY") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME") or os.environ.get("LAMBDA_TASK_ROOT"))
+    is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("NETLIFY") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME") or os.environ.get("LAMBDA_TASK_ROOT"))
     if is_serverless:
         return "/tmp/ps26237_workspace"
     return "ps26237_workspace"

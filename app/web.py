@@ -397,8 +397,10 @@ def create_app(ws: Workspace | None = None) -> Flask:
             ledger_chip = '<span class="chip"><span class="dot bad"></span>ledger unavailable</span>'
 
         env_chip = ""
-        if os.environ.get("NETLIFY") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME") or os.environ.get("LAMBDA_TASK_ROOT"):
-            env_chip = '<span class="chip" style="background:var(--accent-soft);color:var(--accent);border-color:var(--accent-line)"><b>Netlify Serverless</b></span>'
+        if os.environ.get("VERCEL"):
+            env_chip = '<span class="chip" style="background:var(--accent-soft);color:var(--accent);border-color:var(--accent-line)"><b>Vercel Serverless</b></span>'
+        elif os.environ.get("NETLIFY") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME") or os.environ.get("LAMBDA_TASK_ROOT"):
+            env_chip = '<span class="chip" style="background:var(--accent-soft);color:var(--accent);border-color:var(--accent-line)"><b>Cloud Serverless</b></span>'
 
         nav = "".join(
             f'<a href="{href}" class="{"on" if page_id == pid else ""}">{svg(ico, 16)}{label}</a>'
@@ -592,7 +594,7 @@ def create_app(ws: Workspace | None = None) -> Flask:
 
     # ---------------------------------------------------------------- recipient
     _downloads: dict[str, object] = {}
-    _download_dir = Path("/tmp/ps26237_downloads") if (os.environ.get("NETLIFY") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME") or os.environ.get("LAMBDA_TASK_ROOT")) else None
+    _download_dir = Path("/tmp/ps26237_downloads") if (os.environ.get("VERCEL") or os.environ.get("NETLIFY") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME") or os.environ.get("LAMBDA_TASK_ROOT")) else None
     if _download_dir:
         try:
             _download_dir.mkdir(parents=True, exist_ok=True)
