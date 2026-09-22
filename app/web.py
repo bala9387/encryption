@@ -198,17 +198,28 @@ input::placeholder{color:#94A3B4}
 code{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line-soft);
   padding:2px 7px;border-radius:5px;color:#1C3A5E}
 
-/* ---------- busy overlay ---------- */
+/* ---------- busy overlay & progress bar ---------- */
 #busy{position:fixed;inset:0;z-index:90;display:none;place-items:center;
-  background:rgba(243,246,250,.88);backdrop-filter:blur(3px)}
+  background:rgba(243,246,250,.90);backdrop-filter:blur(4px);transition:opacity .2s ease}
 #busy.on{display:grid}
-#busy .box{background:#fff;border:1px solid var(--line);border-radius:var(--r-lg);padding:30px 38px;
-  text-align:center;box-shadow:0 20px 44px -24px rgba(16,24,40,.45);max-width:380px}
-.spin{width:34px;height:34px;margin:0 auto 16px;border-radius:50%;
-  border:3px solid #DCE6F3;border-top-color:var(--accent);animation:sp .8s linear infinite}
+#busy .box{background:#fff;border:1px solid var(--line);border-radius:var(--r-lg);padding:28px 34px;
+  text-align:center;box-shadow:0 24px 50px -18px rgba(16,24,40,.38);width:100%;max-width:410px}
+.spin{width:36px;height:36px;margin:0 auto 14px;border-radius:50%;
+  border:3.5px solid #E2EBF6;border-top-color:var(--accent);animation:sp .75s cubic-bezier(.6,.2,.4,.8) infinite}
 @keyframes sp{ to{transform:rotate(360deg)} }
-#busy .m{font-weight:700}
-#busy .s{color:var(--muted);font-size:13px;margin-top:7px}
+#busy .m{font-size:16px;font-weight:700;color:var(--fg);margin-bottom:4px}
+#busy .s{color:var(--muted);font-size:13px;min-height:18px}
+
+.pbar-wrap{margin:18px 0 6px}
+.pbar-track{width:100%;height:10px;background:#EBF0F7;border-radius:999px;overflow:hidden;position:relative;border:1px solid var(--line-soft)}
+.pbar-fill{height:100%;width:0%;background:linear-gradient(90deg,#0B5FCC,#3B82F6,#6366F1);border-radius:999px;
+  transition:width .2s ease-out;position:relative;overflow:hidden}
+.pbar-fill::after{content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.5),transparent);
+  animation:pbar-shimmer 1.4s infinite;transform:translateX(-100%)}
+@keyframes pbar-shimmer{ 100%{transform:translateX(100%)} }
+.pbar-meta{display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-top:7px;color:var(--muted);font-weight:600}
+.pbar-pct{color:var(--accent);font-family:var(--mono);font-size:12.5px}
 """
 
 JS = """
@@ -237,16 +248,98 @@ JS = """
       } else { out.textContent = base; d.classList.remove('filled'); }
     }
   });
+
   var busy = document.getElementById('busy');
+  var pfill = document.getElementById('pbar-fill');
+  var ppct = document.getElementById('pbar-pct');
+  var pstage = document.getElementById('pbar-stage');
+  var ptimer = null;
+
+  function runProgress(totalDuration, stages) {
+    if (ptimer) clearInterval(ptimer);
+    var startTime = Date.now();
+    pfill.style.width = '0%';
+    pfill.style.background = 'linear-gradient(90deg,#0B5FCC,#3B82F6,#6366F1)';
+    ppct.textContent = '0%';
+
+    ptimer = setInterval(function(){
+      var elapsed = Date.now() - startTime;
+      var ratio = Math.min(elapsed / totalDuration, 0.96);
+      var pct = Math.round(ratio * 100);
+      pfill.style.width = pct + '%';
+      ppct.textContent = pct + '%';
+
+      for (var i = stages.length - 1; i >= 0; i--) {
+        if (pct >= stages[i].at) {
+          pstage.textContent = stages[i].text;
+          break;
+        }
+      }
+    }, 100);
+  }
+
   document.querySelectorAll('form[data-busy]').forEach(function(f){
     f.addEventListener('submit', function(){
       var parts = f.getAttribute('data-busy').split('|');
-      busy.querySelector('.m').textContent = parts[0];
-      busy.querySelector('.s').textContent = parts[1] || '';
+      document.getElementById('busy-m').textContent = parts[0];
+      document.getElementById('busy-s').textContent = parts[1] || '';
+
+      var action = f.getAttribute('action') || window.location.pathname;
+      var duration = 2400;
+      var stages = [
+        { at: 0, text: 'Reading input data…' },
+        { at: 30, text: 'Generating cryptographic keys…' },
+        { at: 65, text: 'Processing post-quantum payload…' },
+        { at: 85, text: 'Finalizing…' }
+      ];
+
+      if (action.indexOf('sender') !== -1 || parts[0].indexOf('Encrypt') !== -1) {
+        duration = 2000;
+        stages = [
+          { at: 0, text: 'Loading document…' },
+          { at: 25, text: 'Generating AES-256 session key…' },
+          { at: 55, text: 'Encapsulating ML-KEM-768 key-wraps…' },
+          { at: 80, text: 'Building .ps26237 package…' },
+          { at: 92, text: 'Preparing download…' }
+        ];
+      } else if (action.indexOf('recipient') !== -1 || parts[0].indexOf('Decrypt') !== -1) {
+        duration = 2500;
+        stages = [
+          { at: 0, text: 'Verifying recipient credentials…' },
+          { at: 25, text: 'Decapsulating ML-KEM-768 session key…' },
+          { at: 50, text: 'Embedding unique invisible watermark…' },
+          { at: 75, text: 'Signing record with ML-DSA-65…' },
+          { at: 90, text: 'Committing to ledger quorum…' }
+        ];
+      } else if (action.indexOf('trace') !== -1 || parts[0].indexOf('watermark') !== -1) {
+        duration = 13000;
+        stages = [
+          { at: 0, text: 'Rasterizing document…' },
+          { at: 15, text: 'Extracting DCT frequency domain…' },
+          { at: 35, text: 'Searching rotation angles & scale…' },
+          { at: 60, text: 'Majority voting across redundant tiles…' },
+          { at: 80, text: 'Querying multi-node ledger quorum…' },
+          { at: 92, text: 'Cryptographic signature verification…' }
+        ];
+      }
+
+      runProgress(duration, stages);
       busy.classList.add('on');
     });
   });
-  window.addEventListener('pageshow', function(){ busy.classList.remove('on'); });
+
+  window.addEventListener('pageshow', function(){
+    if (ptimer) clearInterval(ptimer);
+    busy.classList.remove('on');
+  });
+
+  busy.addEventListener('click', function(e){
+    if (e.target === busy) {
+      if (ptimer) clearInterval(ptimer);
+      busy.classList.remove('on');
+    }
+  });
+
   document.querySelectorAll('.copy').forEach(function(b){
     b.addEventListener('click', function(){
       navigator.clipboard.writeText(b.dataset.v).then(function(){
@@ -320,8 +413,15 @@ def create_app(ws: Workspace) -> Flask:
   </div>
 </div></header>
 <main>{flashes}{body}</main>
-<div id="busy"><div class="box"><div class="spin"></div>
-  <div class="m">Working…</div><div class="s"></div></div></div>
+<div id="busy"><div class="box">
+  <div class="spin" id="busy-spin"></div>
+  <div class="m" id="busy-m">Working…</div>
+  <div class="s" id="busy-s"></div>
+  <div class="pbar-wrap">
+    <div class="pbar-track"><div class="pbar-fill" id="pbar-fill"></div></div>
+    <div class="pbar-meta"><span id="pbar-stage">Initializing…</span><span class="pbar-pct" id="pbar-pct">0%</span></div>
+  </div>
+</div></div>
 <script>{JS}</script></body></html>"""
 
     def hero(eyebrow: str, title: str, lede: str) -> str:
