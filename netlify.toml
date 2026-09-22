@@ -1,0 +1,58 @@
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+[build.environment]
+  PYTHON_VERSION = "3.11"
+  NETLIFY = "true"
+
+[functions]
+  included_files = [
+    "crypto/**",
+    "watermark/**",
+    "ledger/**",
+    "forensics/**",
+    "app/**"
+  ]
+
+# Direct API and application routes to the serverless function
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/api/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/sender"
+  to = "/.netlify/functions/api/sender"
+  status = 200
+
+[[redirects]]
+  from = "/recipient"
+  to = "/.netlify/functions/api/recipient"
+  status = 200
+
+[[redirects]]
+  from = "/download"
+  to = "/.netlify/functions/api/download"
+  status = 200
+
+[[redirects]]
+  from = "/trace"
+  to = "/.netlify/functions/api/trace"
+  status = 200
+
+[[redirects]]
+  from = "/identities/*"
+  to = "/.netlify/functions/api/identities/:splat"
+  status = 200
+
+[[redirects]]
+  from = "/"
+  to = "/.netlify/functions/api/"
+  status = 200
+
+# Catch-all for any other dynamic routes
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200

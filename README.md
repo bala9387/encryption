@@ -22,6 +22,13 @@ python ps26237.py trace --leaked leaked_photo.jpg                  # attribution
 python ps26237.py serve                                            # local web UI on 127.0.0.1:8237
 ```
 
+**Live Cloud Demo (Netlify):**
+Deploy this prototype instantly to Netlify as a serverless web application:
+- Connect your GitHub repo to Netlify or run `netlify deploy --prod` (configured in `netlify.toml`).
+- Pre-seeds demo identities (`alice`, `bob`, `carol` with passphrase `password123`) in `/tmp`.
+- Includes downloadable sample files (`sample_contract.png`, `sample_memo.pdf`) on the Sender page for instant testing.
+- Full instructions & architecture: [`docs/DEPLOY_NETLIFY.md`](docs/DEPLOY_NETLIFY.md).
+
 **Test suites** (on Windows prefix with `PYTHONIOENCODING=utf-8`):
 ```bash
 python demo/test_requirements.py          # 17/17 requirement scorecard (no Docker needed)
@@ -207,8 +214,11 @@ about what another viewer displays.
 | `watermark/document_formats.py` | Per-format watermarking: PNG/JPEG direct, PDF page-by-page; Office rejected |
 | `app/service.py` | Workspace, identities, encrypt/decrypt/trace used by both CLI and web UI |
 | `app/web.py` | Local Flask UI (status / sender / recipient / trace), no external assets |
+| `netlify/functions/api.py` | Netlify Functions serverless WSGI bridge with auto demo seeding |
+| `netlify.toml`, `runtime.txt` | Netlify build, routing, and Python 3.11 environment configuration |
 | `ps26237.py` | CLI: init, keygen, encrypt, decrypt, trace, ledger-status, serve |
 | `docs/DEPLOYMENT.md` | Air-gapped install bundle, HSM/token guidance, topology, scale numbers |
+| `docs/DEPLOY_NETLIFY.md` | Cloud deployment guide for Netlify serverless hosting |
 | `demo/test_app.py` | 24 checks on the application layer (identities, PDF, tracing, persistence) |
 | `demo/test_watermark_robustness.py` | Bit error rates across 23 leak transformations, 8 documents |
 | `demo/run_full_pipeline.py` | Full narrated demo (3 recipients, 1 leak, 1 rogue-admin attack) |

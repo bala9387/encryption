@@ -1,21 +1,16 @@
 # PS 26237 — Python dependencies
-# Versions are the ones this prototype was built and tested against
-# (Windows 11, Python 3.14.4). Install offline with:
-#   pip install --no-index --find-links=wheels -r requirements.txt
+# Compatible with both local environments and cloud/serverless platforms (Netlify Functions)
 
-liboqs-python==0.16.0     # ML-KEM-768 (FIPS 203) + ML-DSA-65 (FIPS 204)
-cryptography==46.0.7      # AES-256-GCM, HKDF, scrypt key storage
-numpy==2.4.4              # watermark maths
-opencv-python==5.0.0.93   # DCT transform, image I/O
-pymupdf==1.28.2           # PDF render / rebuild
-Flask==3.1.3              # local operator web UI
+cryptography>=43.0.0
+numpy>=1.26.0
+opencv-python-headless>=4.8.0
+pymupdf>=1.24.0
+Flask>=3.0.0
+serverless-wsgi>=3.0.0
 
-# IMPORTANT: liboqs-python is only the Python binding. It needs the compiled
-# liboqs C library (oqs.dll / liboqs.so) present on the machine. If it cannot
-# find one, it tries to git-clone and build liboqs at import time, which fails
-# on an air-gapped host. Ship a prebuilt library and set OQS_INSTALL_PATH.
-# Build instructions: docs/DEPLOYMENT.md section 1.2.
-#
-# The Fabric ledger (ledger/fabric/) additionally needs Docker; its Go chaincode
-# dependencies are vendored in ledger/fabric/chaincode/provenance/vendor, so it
-# builds without network access.
+# NOTE ON LIBOQS:
+# liboqs-python requires a precompiled liboqs C library (oqs.dll on Windows, liboqs.so on Linux).
+# On serverless platforms (Netlify/AWS Lambda) where external C-libraries cannot be built at install time,
+# the application automatically activates a size-matched pure-Python reference emulator.
+# For local air-gapped installations with the compiled C library:
+#   pip install liboqs-python==0.16.0

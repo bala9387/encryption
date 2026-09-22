@@ -98,13 +98,33 @@ class TraceOutcome:
         }
 
 
+def resolve_workspace_dir(preferred: str | None = None) -> str:
+    """Resolves workspace directory with automatic fallback to /tmp for serverless/read-only hosts."""
+    if preferred:
+        return preferred
+    env_home = os.environ.get("PS26237_HOME")
+    if env_home:
+        return env_home
+    is_serverless = bool(os.environ.get("NETLIFY") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME") or os.environ.get("LAMBDA_TASK_ROOT"))
+    if is_serverless:
+        return "/tmp/ps26237_workspace"
+    return "ps26237_workspace"
+
+
 class Workspace:
     _lock = threading.RLock()
 
-    def __init__(self, root: str | os.PathLike, ledger: str | None = None):
-        self.root = Path(root)
-        self.root.mkdir(parents=True, exist_ok=True)
-        (self.root / "identities").mkdir(exist_ok=True)
+    def __init__(self, root: str | os.PathLike | None = None, ledger: str | None = None):
+        target = resolve_workspace_dir(str(root) if root else None)
+        try:
+            self.root = Path(target)
+            self.root.mkdir(parents=True, exist_ok=True)
+            (self.root / "identities").mkdir(exist_ok=True)
+        except OSError:
+            self.root = Path("/tmp/ps26237_workspace")
+            self.root.mkdir(parents=True, exist_ok=True)
+            (self.root / "identities").mkdir(exist_ok=True)
+
         cfg_path = self.root / "config.json"
         cfg = json.loads(cfg_path.read_text()) if cfg_path.exists() else {"ledger": "sim"}
         if ledger:
@@ -114,6 +134,21 @@ class Workspace:
         cfg_path.write_text(json.dumps(cfg, indent=1))
         self.config = cfg
         self._ledger = None
+
+    def seed_demo_identities_if_empty(self) -> list[str]:
+        """Seeds alice, bob, carol with passphrase 'password123' if no identities exist."""
+        with self._lock:
+            existing = self.list_identities()
+            if existing:
+                return []
+            created = []
+            for name in ["alice", "bob", "carol"]:
+                try:
+                    self.create_identity(name, "password123")
+                    created.append(name)
+                except Exception:
+                    pass
+            return created
 
     # ------------------------------------------------------------------ ledger
     @property

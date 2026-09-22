@@ -25,6 +25,7 @@ import json
 import os
 import sys
 import traceback
+from pathlib import Path
 
 _parent = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _parent not in sys.path:
@@ -376,7 +377,11 @@ def e(v) -> str:
     return html.escape(str(v), quote=True)
 
 
-def create_app(ws: Workspace) -> Flask:
+def create_app(ws: Workspace | None = None) -> Flask:
+    if ws is None:
+        from app.service import resolve_workspace_dir
+        ws = Workspace(resolve_workspace_dir())
+        ws.seed_demo_identities_if_empty()
     app = Flask(__name__)
     app.secret_key = "ps26237-local-console"
     app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
@@ -390,6 +395,11 @@ def create_app(ws: Workspace) -> Flask:
                            f'{e(ws.ledger_backend)} ledger <b>{st["records"]}</b> records</span>')
         except Exception:
             ledger_chip = '<span class="chip"><span class="dot bad"></span>ledger unavailable</span>'
+
+        env_chip = ""
+        if os.environ.get("NETLIFY") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME") or os.environ.get("LAMBDA_TASK_ROOT"):
+            env_chip = '<span class="chip" style="background:var(--accent-soft);color:var(--accent);border-color:var(--accent-line)"><b>Netlify Serverless</b></span>'
+
         nav = "".join(
             f'<a href="{href}" class="{"on" if page_id == pid else ""}">{svg(ico, 16)}{label}</a>'
             for pid, href, label, ico in [
@@ -407,7 +417,7 @@ def create_app(ws: Workspace) -> Flask:
   <div class="brand"><span class="mark">{svg("fingerprint", 17)}</span>
     <span>PRAMAAN<small>PS 26237 · attribution console</small></span></div>
   <nav>{nav}</nav>
-  <div class="chips">{ledger_chip}
+  <div class="chips">{env_chip}{ledger_chip}
     <span class="chip">{svg("lock", 13)}{e(MLKEM.algorithm)} · {e(MLDSA.algorithm)}</span>
     <span class="chip">{e(BACKEND)}</span>
   </div>
@@ -556,6 +566,7 @@ def create_app(ws: Workspace) -> Flask:
     <form method="post" enctype="multipart/form-data" data-busy="Encrypting…|Wrapping the document key for each recipient">
       <label>Document</label>
       {drop("doc", ".png,.jpg,.jpeg,.pdf", "Drop a file here, or click to choose", "PNG, JPEG or PDF · up to 64 MB")}
+      <div style="margin:7px 0 14px;font-size:12px;color:var(--muted)">Need a test file? <a href="/samples/sample_contract.png" download style="font-weight:600">sample_contract.png</a> · <a href="/samples/sample_memo.pdf" download style="font-weight:600">sample_memo.pdf</a></div>
       <label>Document ID <span style="text-transform:none;color:var(--faint)">(optional)</span></label>
       <input type="text" name="doc_id" placeholder="OP-BLUEHORIZON-ANNEX-C">
       <label>Recipients</label>
@@ -581,11 +592,23 @@ def create_app(ws: Workspace) -> Flask:
 
     # ---------------------------------------------------------------- recipient
     _downloads: dict[str, object] = {}
+    _download_dir = Path("/tmp/ps26237_downloads") if (os.environ.get("NETLIFY") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME") or os.environ.get("LAMBDA_TASK_ROOT")) else None
+    if _download_dir:
+        try:
+            _download_dir.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            _download_dir = None
 
     def stash(res) -> str:
         import uuid
         t = uuid.uuid4().hex
         _downloads[t] = res
+        if _download_dir:
+            try:
+                (_download_dir / f"{t}.bin").write_bytes(res.data)
+                (_download_dir / f"{t}.json").write_text(json.dumps({"filename": res.filename}))
+            except Exception:
+                pass
         for old in list(_downloads)[:-20]:
             _downloads.pop(old, None)
         return t
@@ -660,10 +683,21 @@ def create_app(ws: Workspace) -> Flask:
 
     @app.route("/download", methods=["POST"])
     def download():
-        res = _downloads.pop(request.form.get("token", ""), None)
-        if res is None:
-            raise ServiceError("download expired — decrypt again")
-        return send_file(io.BytesIO(res.data), as_attachment=True, download_name=res.filename)
+        token = request.form.get("token", "")
+        res = _downloads.pop(token, None)
+        if res is not None:
+            return send_file(io.BytesIO(res.data), as_attachment=True, download_name=res.filename)
+        if _download_dir and token:
+            bin_p = _download_dir / f"{token}.bin"
+            meta_p = _download_dir / f"{token}.json"
+            if bin_p.exists() and meta_p.exists():
+                try:
+                    meta = json.loads(meta_p.read_text())
+                    data = bin_p.read_bytes()
+                    return send_file(io.BytesIO(data), as_attachment=True, download_name=meta.get("filename", "download"))
+                except Exception:
+                    pass
+        raise ServiceError("download expired — decrypt again")
 
     # -------------------------------------------------------------------- trace
     @app.route("/trace", methods=["GET", "POST"])
@@ -797,6 +831,15 @@ def create_app(ws: Workspace) -> Flask:
         else:
             flash("Demo identities (alice, bob, carol) already exist.")
         return redirect(request.referrer or url_for("home"))
+
+    @app.route("/samples/<path:filename>")
+    def sample_file(filename):
+        sample_path = os.path.join(_parent, "public", "samples", os.path.basename(filename))
+        if os.path.exists(sample_path):
+            mimetype = "application/pdf" if filename.endswith(".pdf") else "image/png"
+            return send_file(sample_path, mimetype=mimetype)
+        flash(f"Sample file {filename} not found")
+        return redirect(url_for("sender"))
 
     return app
 
