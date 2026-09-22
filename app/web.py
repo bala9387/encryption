@@ -22,7 +22,13 @@ from __future__ import annotations
 import html
 import io
 import json
+import os
+import sys
 import traceback
+
+_parent = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _parent not in sys.path:
+    sys.path.insert(0, _parent)
 
 from flask import Flask, get_flashed_messages, redirect, request, send_file, url_for, flash
 
@@ -369,9 +375,25 @@ def create_app(ws: Workspace) -> Flask:
         ids = ws.list_identities()
         id_chips = "".join(f'<div class="node">{svg("key", 15)}<span class="nm">{e(i)}</span>'
                            f'<span class="rc">ML-KEM-768 · ML-DSA-65</span></div>' for i in ids) or \
-            ('<div class="empty">No identities yet. Create one with '
-             '<code>python ps26237.py keygen --id alice</code> — the passphrase is prompted in the '
-             'terminal and never sent to this page.</div>')
+            ('<div class="empty">No identities yet. Click below to seed demo identities or create one.</div>')
+
+        identity_actions = f"""
+        <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <form method="post" action="/identities/seed_demo" style="margin:0">
+            <button class="btn" type="submit" style="background:var(--violet);border-color:var(--violet);padding:7px 14px;font-size:13px">
+              {svg("key", 15)} Seed Demo Identities (alice, bob, carol)
+            </button>
+          </form>
+        </div>
+        <details style="margin-top:14px;border-top:1px solid var(--line-soft);padding-top:10px">
+          <summary style="cursor:pointer;color:var(--accent);font-weight:600;font-size:13px">+ Create custom identity</summary>
+          <form method="post" action="/identities/new" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+            <input type="text" name="identity_id" placeholder="ID (e.g. dave)" required style="flex:1;min-width:110px;padding:6px 10px;font-size:13px">
+            <input type="password" name="passphrase" placeholder="Passphrase" required style="flex:1;min-width:110px;padding:6px 10px;font-size:13px">
+            <button class="btn" type="submit" style="padding:6px 14px;font-size:13px">Add</button>
+          </form>
+        </details>
+        """
 
         agreement = ('<b style="color:var(--ok)">all nodes agree</b>' if ok else
                      f'<b style="color:var(--bad)">disagreement: {e(", ".join(sorted(tampered)))}</b>')
@@ -400,6 +422,7 @@ def create_app(ws: Workspace) -> Flask:
     <p class="sub">Secret keys are encrypted at rest with scrypt + AES-256-GCM under each holder's passphrase.</p>
     <hr class="sep">
     <div class="grid" style="gap:10px">{id_chips}</div>
+    {identity_actions}
   </div>
 </div>"""
         return page("Status", "home", body)
@@ -420,7 +443,10 @@ def create_app(ws: Workspace) -> Flask:
         ids = ws.list_identities()
         picks = "".join(f'<label class="pick"><input type="checkbox" name="recipients" value="{e(i)}">'
                         f'<span>{e(i)}</span></label>' for i in ids) or \
-            '<div class="empty">No identities yet — create them with <code>python ps26237.py keygen --id alice</code>.</div>'
+            ('<div class="empty">No identities yet — '
+             '<form method="post" action="/identities/seed_demo" style="display:inline">'
+             '<button class="btn" type="submit" style="background:var(--violet);border-color:var(--violet);padding:4px 10px;font-size:12px;display:inline-flex;margin-left:6px">'
+             'Seed Alice, Bob, Carol</button></form></div>')
 
         body = f"""
 {hero("Sender", "Encrypt once, distribute to many",
@@ -639,4 +665,46 @@ def create_app(ws: Workspace) -> Flask:
     def api_status():
         return json.dumps(ws.ledger_status(), indent=1), 200, {"Content-Type": "application/json"}
 
+    @app.route("/identities/new", methods=["POST"])
+    def new_identity():
+        rid = request.form.get("identity_id", "").strip().lower()
+        pw = request.form.get("passphrase", "")
+        if not rid:
+            flash("Identity ID cannot be empty")
+            return redirect(url_for("home"))
+        if len(pw) < 4:
+            flash("Passphrase must be at least 4 characters")
+            return redirect(url_for("home"))
+        try:
+            ws.create_identity(rid, pw)
+            flash(f"Identity '{rid}' created successfully with ML-KEM-768 and ML-DSA-65 keypairs.")
+        except Exception as ex:
+            flash(f"Error creating identity '{rid}': {ex}")
+        return redirect(request.referrer or url_for("home"))
+
+    @app.route("/identities/seed_demo", methods=["POST"])
+    def seed_demo():
+        created = []
+        for name in ["alice", "bob", "carol"]:
+            if name not in ws.list_identities():
+                try:
+                    ws.create_identity(name, "password123")
+                    created.append(name)
+                except Exception:
+                    pass
+        if created:
+            flash(f"Demo identities created: {', '.join(created)} (passphrase: password123)")
+        else:
+            flash("Demo identities (alice, bob, carol) already exist.")
+        return redirect(request.referrer or url_for("home"))
+
     return app
+
+
+if __name__ == "__main__":
+    workspace_dir = os.environ.get("PS26237_HOME", "ps26237_workspace")
+    ws = Workspace(workspace_dir)
+    web_app = create_app(ws)
+    print(f"PS26237 web UI on http://127.0.0.1:8237 (workspace {os.path.abspath(workspace_dir)}, ledger {ws.ledger_backend})")
+    web_app.run(host="127.0.0.1", port=8237, debug=False, threaded=True)
+

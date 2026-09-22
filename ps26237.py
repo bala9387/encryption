@@ -36,6 +36,13 @@ def _passphrase(prompt: str, confirm: bool = False) -> str:
 
 
 def main(argv=None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+    if not argv:
+        print("No command specified. Defaulting to 'serve' (starting web console)...")
+        print("Run 'python ps26237.py --help' to see all available CLI commands.\n")
+        argv = ["serve"]
+
     ap = argparse.ArgumentParser(prog="ps26237", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--workspace", default=os.environ.get("PS26237_HOME", "ps26237_workspace"))
     sub = ap.add_subparsers(dest="cmd", required=True)

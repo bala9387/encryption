@@ -24,4 +24,5 @@ ENV/
 # OS generated files
 .DS_Store
 Thumbs.db
-Desktop.ini
+# Local runtime workspaces
+ps26237_workspace/
