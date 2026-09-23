@@ -726,7 +726,8 @@ def create_app(ws: Workspace | None = None) -> Flask:
       <label>Encrypted package</label>
       {drop("package", ".ps26237,.json", "Drop the .ps26237 package here, or click to choose", "Produced by the sender page or the CLI")}
       <label>Decrypt as</label><select name="rid" required>{opts}</select>
-      <label>Passphrase</label><input type="password" name="passphrase" placeholder="unlocks your post-quantum secret keys" required>
+      <label>Passphrase <span style="text-transform:none;color:var(--muted);font-weight:400">(demo identities use: <code style="color:var(--accent);font-weight:700">password123</code>)</span></label>
+      <input type="password" name="passphrase" placeholder="password123" required>
       <button class="btn" type="submit">{svg("inbox", 17)}Decrypt, watermark and commit</button>
       <p class="note">If the ledger commit fails, nothing is released — you get an error instead of a file.</p>
     </form>
