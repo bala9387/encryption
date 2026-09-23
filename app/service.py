@@ -137,6 +137,7 @@ class Workspace:
 
     def seed_demo_identities_if_empty(self) -> list[str]:
         """Seeds alice, bob, carol with passphrase 'password123' if no identities exist."""
+        import hashlib
         with self._lock:
             existing = self.list_identities()
             if existing:
@@ -144,7 +145,8 @@ class Workspace:
             created = []
             for name in ["alice", "bob", "carol"]:
                 try:
-                    self.create_identity(name, "password123")
+                    seed = hashlib.sha256(f"ps26237-demo-seed-v1-{name}".encode()).digest()
+                    self.create_identity(name, "password123", seed=seed)
                     created.append(name)
                 except Exception:
                     pass
@@ -185,14 +187,19 @@ class Workspace:
             raise ServiceError(f"invalid identity '{rid}' (lowercase letters, digits, . _ -)")
         return self.root / "identities" / f"{rid}.json"
 
-    def create_identity(self, rid: str, passphrase: str) -> dict:
+    def create_identity(self, rid: str, passphrase: str, seed: bytes | None = None) -> dict:
         path = self._identity_path(rid)
         if path.exists():
             raise ServiceError(f"identity '{rid}' already exists")
         if len(passphrase) < 8:
             raise ServiceError("passphrase must be at least 8 characters")
-        kem, dsa = MLKEM.keygen(), MLDSA.keygen()
-        salt, nonce = os.urandom(16), os.urandom(12)
+        kem, dsa = MLKEM.keygen(seed=seed), MLDSA.keygen(seed=seed)
+        if seed:
+            import hashlib
+            salt = hashlib.sha256(b"salt:" + rid.encode()).digest()[:16]
+            nonce = hashlib.sha256(b"nonce:" + rid.encode()).digest()[:12]
+        else:
+            salt, nonce = os.urandom(16), os.urandom(12)
         secret = json.dumps({"kem_secret_key": _b64(kem.secret_key), "dsa_secret_key": _b64(dsa.secret_key)}).encode()
         ct = AESGCM(_kdf(passphrase, salt)).encrypt(nonce, secret, rid.encode())
         ident = {
@@ -247,6 +254,7 @@ class Workspace:
         document_id = document_id or f"DOC-{uuid.uuid4().hex[:12].upper()}"
         pkg = encrypt_for_recipients(document_id, data, keys)
         return json.dumps({"format": PACKAGE_FORMAT, "filename": os.path.basename(filename),
+                           "crypto_backend": BACKEND,
                            "package": json.loads(pkg.to_json())}).encode()
 
     @staticmethod
@@ -266,14 +274,20 @@ class Workspace:
             raise ServiceError("not a PS26237 package") from None
         if outer.get("format") != PACKAGE_FORMAT:
             raise ServiceError("not a PS26237 package")
+        pkg_backend = outer.get("crypto_backend")
+        if pkg_backend and pkg_backend != BACKEND:
+            raise ServiceError(
+                f"Cryptographic backend mismatch: this package was encrypted using '{pkg_backend}', "
+                f"but this server is running '{BACKEND}'. Please encrypt and decrypt within the same environment."
+            )
         pkg = EncryptedPackage.from_json(json.dumps(outer["package"]))
         kem_sk, dsa_kp = self._unlock(rid, passphrase)
         try:
             session = perform_decryption_session(pkg, rid, kem_sk, dsa_kp, raw_image_array=None)
         except PermissionError as e:
             raise ServiceError(str(e)) from None
-        except Exception:
-            raise ServiceError("decryption failed (wrong key or corrupted package)") from None
+        except Exception as ex:
+            raise ServiceError(f"decryption failed: {ex} (wrong key or corrupted package)") from None
 
         watermarked, fmt = embed_document(session.plaintext_bytes, bytes.fromhex(session.record.watermark_id))
 

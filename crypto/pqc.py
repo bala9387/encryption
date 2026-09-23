@@ -125,14 +125,17 @@ class MLKEM:
     algorithm = ML_KEM_768["name"]
 
     @staticmethod
-    def keygen() -> KEMKeyPair:
+    def keygen(seed: bytes | None = None) -> KEMKeyPair:
         if _HAS_OQS:
             with oqs.KeyEncapsulation(MLKEM.algorithm) as kem:
                 pk = kem.generate_keypair()
                 sk = kem.export_secret_key()
             return KEMKeyPair(public_key=bytes(pk), secret_key=bytes(sk))
         else:
-            priv = x25519.X25519PrivateKey.generate()
+            if seed:
+                priv = x25519.X25519PrivateKey.from_private_bytes(seed[:32])
+            else:
+                priv = x25519.X25519PrivateKey.generate()
             pub = priv.public_key()
             raw_priv = priv.private_bytes_raw()
             raw_pub = pub.public_bytes_raw()
@@ -196,14 +199,17 @@ class MLDSA:
     algorithm = ML_DSA_65["name"]
 
     @staticmethod
-    def keygen() -> DSAKeyPair:
+    def keygen(seed: bytes | None = None) -> DSAKeyPair:
         if _HAS_OQS:
             with oqs.Signature(MLDSA.algorithm) as sig:
                 pk = sig.generate_keypair()
                 sk = sig.export_secret_key()
             return DSAKeyPair(public_key=bytes(pk), secret_key=bytes(sk))
         else:
-            priv = ed25519.Ed25519PrivateKey.generate()
+            if seed:
+                priv = ed25519.Ed25519PrivateKey.from_private_bytes(seed[:32])
+            else:
+                priv = ed25519.Ed25519PrivateKey.generate()
             pub = priv.public_key()
             raw_priv = priv.private_bytes_raw()
             raw_pub = pub.public_bytes_raw()
