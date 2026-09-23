@@ -31,7 +31,7 @@ _parent = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _parent not in sys.path:
     sys.path.insert(0, _parent)
 
-from flask import Flask, get_flashed_messages, redirect, request, send_file, url_for, flash
+from flask import Flask, get_flashed_messages, redirect, request, send_file, url_for, flash, make_response
 
 from app.service import Workspace, ServiceError
 from watermark.document_formats import UnsupportedFormat
@@ -203,8 +203,9 @@ code{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1
 #busy{position:fixed;inset:0;z-index:90;display:none;place-items:center;
   background:rgba(243,246,250,.90);backdrop-filter:blur(4px);transition:opacity .2s ease}
 #busy.on{display:grid}
-#busy .box{background:#fff;border:1px solid var(--line);border-radius:var(--r-lg);padding:28px 34px;
+#busy .box{position:relative;background:#fff;border:1px solid var(--line);border-radius:var(--r-lg);padding:28px 34px;
   text-align:center;box-shadow:0 24px 50px -18px rgba(16,24,40,.38);width:100%;max-width:410px}
+#busy-x:hover{color:var(--fg)!important;background:var(--panel-2)!important}
 .spin{width:36px;height:36px;margin:0 auto 14px;border-radius:50%;
   border:3.5px solid #E2EBF6;border-top-color:var(--accent);animation:sp .75s cubic-bezier(.6,.2,.4,.8) infinite}
 @keyframes sp{ to{transform:rotate(360deg)} }
@@ -254,7 +255,37 @@ JS = """
   var pfill = document.getElementById('pbar-fill');
   var ppct = document.getElementById('pbar-pct');
   var pstage = document.getElementById('pbar-stage');
+  var busyM = document.getElementById('busy-m');
+  var busyS = document.getElementById('busy-s');
+  var busySpin = document.getElementById('busy-spin');
+  var busyX = document.getElementById('busy-x');
+  var busyDismiss = document.getElementById('busy-dismiss');
   var ptimer = null;
+  var ctimer = null;
+  var dtimer = null;
+
+  function hideBusy() {
+    if (ptimer) { clearInterval(ptimer); ptimer = null; }
+    if (ctimer) { clearInterval(ctimer); ctimer = null; }
+    if (dtimer) { clearTimeout(dtimer); dtimer = null; }
+    busy.classList.remove('on');
+    if (busySpin) busySpin.style.display = 'block';
+    if (busyDismiss) busyDismiss.style.display = 'none';
+  }
+
+  function finishBusy(msg, sub) {
+    if (ptimer) { clearInterval(ptimer); ptimer = null; }
+    if (ctimer) { clearInterval(ctimer); ctimer = null; }
+    if (dtimer) { clearTimeout(dtimer); dtimer = null; }
+    pfill.style.width = '100%';
+    pfill.style.background = 'linear-gradient(90deg, #10B981, #059669)';
+    ppct.textContent = '100%';
+    if (pstage) pstage.textContent = sub || 'Completed successfully';
+    if (msg && busyM) busyM.textContent = msg;
+    if (busySpin) busySpin.style.display = 'none';
+    if (busyDismiss) busyDismiss.style.display = 'inline-block';
+    dtimer = setTimeout(hideBusy, 900);
+  }
 
   function runProgress(totalDuration, stages) {
     if (ptimer) clearInterval(ptimer);
@@ -262,6 +293,8 @@ JS = """
     pfill.style.width = '0%';
     pfill.style.background = 'linear-gradient(90deg,#0B5FCC,#3B82F6,#6366F1)';
     ppct.textContent = '0%';
+    if (busySpin) busySpin.style.display = 'block';
+    if (busyDismiss) busyDismiss.style.display = 'none';
 
     ptimer = setInterval(function(){
       var elapsed = Date.now() - startTime;
@@ -282,10 +315,11 @@ JS = """
   document.querySelectorAll('form[data-busy]').forEach(function(f){
     f.addEventListener('submit', function(){
       var parts = f.getAttribute('data-busy').split('|');
-      document.getElementById('busy-m').textContent = parts[0];
-      document.getElementById('busy-s').textContent = parts[1] || '';
+      if (busyM) busyM.textContent = parts[0];
+      if (busyS) busyS.textContent = parts[1] || '';
 
       var action = f.getAttribute('action') || window.location.pathname;
+      var isDownload = (action.indexOf('sender') !== -1 || parts[0].indexOf('Encrypt') !== -1);
       var duration = 2400;
       var stages = [
         { at: 0, text: 'Reading input data…' },
@@ -294,7 +328,7 @@ JS = """
         { at: 85, text: 'Finalizing…' }
       ];
 
-      if (action.indexOf('sender') !== -1 || parts[0].indexOf('Encrypt') !== -1) {
+      if (isDownload) {
         duration = 2000;
         stages = [
           { at: 0, text: 'Loading document…' },
@@ -303,6 +337,26 @@ JS = """
           { at: 80, text: 'Building .ps26237 package…' },
           { at: 92, text: 'Preparing download…' }
         ];
+
+        // Clear previous download cookie
+        document.cookie = 'file_download_complete=; Max-Age=0; path=/;';
+
+        // Check for download cookie
+        if (ctimer) clearInterval(ctimer);
+        ctimer = setInterval(function(){
+          if (document.cookie.indexOf('file_download_complete=1') !== -1) {
+            document.cookie = 'file_download_complete=; Max-Age=0; path=/;';
+            finishBusy('Package Downloaded!', 'File saved to your browser downloads');
+          }
+        }, 200);
+
+        // Fallback auto-completion timeout (in case cookie is blocked or ignored)
+        setTimeout(function(){
+          if (busy.classList.contains('on')) {
+            finishBusy('Package Ready!', 'Download started');
+          }
+        }, duration + 1500);
+
       } else if (action.indexOf('recipient') !== -1 || parts[0].indexOf('Decrypt') !== -1) {
         duration = 2500;
         stages = [
@@ -329,16 +383,14 @@ JS = """
     });
   });
 
-  window.addEventListener('pageshow', function(){
-    if (ptimer) clearInterval(ptimer);
-    busy.classList.remove('on');
-  });
-
+  window.addEventListener('pageshow', hideBusy);
+  if (busyX) busyX.addEventListener('click', hideBusy);
+  if (busyDismiss) busyDismiss.addEventListener('click', hideBusy);
   busy.addEventListener('click', function(e){
-    if (e.target === busy) {
-      if (ptimer) clearInterval(ptimer);
-      busy.classList.remove('on');
-    }
+    if (e.target === busy) hideBusy();
+  });
+  window.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && busy.classList.contains('on')) hideBusy();
   });
 
   document.querySelectorAll('.copy').forEach(function(b){
@@ -426,6 +478,7 @@ def create_app(ws: Workspace | None = None) -> Flask:
 </div></header>
 <main>{flashes}{body}</main>
 <div id="busy"><div class="box">
+  <button type="button" id="busy-x" aria-label="Close" style="position:absolute;top:10px;right:14px;background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1;padding:4px;border-radius:6px">✕</button>
   <div class="spin" id="busy-spin"></div>
   <div class="m" id="busy-m">Working…</div>
   <div class="s" id="busy-s"></div>
@@ -433,6 +486,7 @@ def create_app(ws: Workspace | None = None) -> Flask:
     <div class="pbar-track"><div class="pbar-fill" id="pbar-fill"></div></div>
     <div class="pbar-meta"><span id="pbar-stage">Initializing…</span><span class="pbar-pct" id="pbar-pct">0%</span></div>
   </div>
+  <button type="button" class="btn" id="busy-dismiss" style="margin-top:14px;padding:6px 16px;font-size:12.5px;background:#fff;color:var(--muted);border-color:var(--line);display:none">Done / Dismiss</button>
 </div></div>
 <script>{JS}</script></body></html>"""
 
@@ -549,8 +603,10 @@ def create_app(ws: Workspace | None = None) -> Flask:
             pkg = ws.encrypt(f.read(), f.filename, request.form.getlist("recipients"),
                              request.form.get("doc_id") or None)
             info = ws.package_info(pkg)
-            return send_file(io.BytesIO(pkg), as_attachment=True,
-                             download_name=f"{info['document_id']}.ps26237", mimetype="application/json")
+            resp = make_response(send_file(io.BytesIO(pkg), as_attachment=True,
+                                           download_name=f"{info['document_id']}.ps26237", mimetype="application/json"))
+            resp.set_cookie("file_download_complete", "1", max_age=60, path="/", samesite="Lax")
+            return resp
 
         ids = ws.list_identities()
         picks = "".join(f'<label class="pick"><input type="checkbox" name="recipients" value="{e(i)}">'
@@ -688,7 +744,9 @@ def create_app(ws: Workspace | None = None) -> Flask:
         token = request.form.get("token", "")
         res = _downloads.pop(token, None)
         if res is not None:
-            return send_file(io.BytesIO(res.data), as_attachment=True, download_name=res.filename)
+            resp = make_response(send_file(io.BytesIO(res.data), as_attachment=True, download_name=res.filename))
+            resp.set_cookie("file_download_complete", "1", max_age=60, path="/", samesite="Lax")
+            return resp
         if _download_dir and token:
             bin_p = _download_dir / f"{token}.bin"
             meta_p = _download_dir / f"{token}.json"
@@ -696,7 +754,9 @@ def create_app(ws: Workspace | None = None) -> Flask:
                 try:
                     meta = json.loads(meta_p.read_text())
                     data = bin_p.read_bytes()
-                    return send_file(io.BytesIO(data), as_attachment=True, download_name=meta.get("filename", "download"))
+                    resp = make_response(send_file(io.BytesIO(data), as_attachment=True, download_name=meta.get("filename", "download")))
+                    resp.set_cookie("file_download_complete", "1", max_age=60, path="/", samesite="Lax")
+                    return resp
                 except Exception:
                     pass
         raise ServiceError("download expired — decrypt again")
