@@ -546,8 +546,9 @@ def create_app(ws: Workspace | None = None) -> Flask:
         identity_actions = f"""
         <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center">
           <form method="post" action="/identities/seed_demo" style="margin:0">
+            <input type="hidden" name="force" value="1">
             <button class="btn" type="submit" style="background:var(--violet);border-color:var(--violet);padding:7px 14px;font-size:13px">
-              {svg("key", 15)} Seed Demo Identities (alice, bob, carol)
+              {svg("key", 15)} Reset Demo Passphrases to "password123"
             </button>
           </form>
         </div>
@@ -881,18 +882,22 @@ def create_app(ws: Workspace | None = None) -> Flask:
 
     @app.route("/identities/seed_demo", methods=["POST"])
     def seed_demo():
+        force = request.form.get("force") == "1" or request.args.get("force") == "1"
         created = []
         for name in ["alice", "bob", "carol"]:
-            if name not in ws.list_identities():
+            if force or name not in ws.list_identities():
                 try:
+                    p = ws._identity_path(name)
+                    if p.exists():
+                        p.unlink()
                     ws.create_identity(name, "password123")
                     created.append(name)
                 except Exception:
                     pass
         if created:
-            flash(f"Demo identities created: {', '.join(created)} (passphrase: password123)")
+            flash(f"Demo identities ready with passphrase 'password123': {', '.join(created)}")
         else:
-            flash("Demo identities (alice, bob, carol) already exist.")
+            flash("Demo identities (alice, bob, carol) ready with passphrase 'password123'.")
         return redirect(request.referrer or url_for("home"))
 
     @app.route("/samples/<path:filename>")
