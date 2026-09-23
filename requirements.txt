@@ -6,6 +6,7 @@ numpy>=1.26.0
 opencv-python-headless>=4.8.0
 pymupdf>=1.24.0
 Flask>=3.0.0
+gunicorn>=21.2.0
 serverless-wsgi>=3.0.0
 
 # NOTE ON LIBOQS:
