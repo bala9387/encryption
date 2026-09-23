@@ -4,6 +4,13 @@ This repository supports two seamless deployment methods on Google Cloud:
 1. **Google Cloud Run** (Recommended: fully managed container, fast autoscaling, zero idle cost)
 2. **Google App Engine** (Standard Python 3.11 environment via `app.yaml`)
 
+Both deployment targets have been verified end-to-end for:
+- One-time encryption with per-recipient post-quantum ML-KEM-768 wraps
+- Discrete Cosine Transform (DCT) invisible watermarking
+- Post-quantum ML-DSA-65 digital signatures
+- Multi-node PBFT ledger quorum commitment
+- Forensic watermark recovery and mathematical attribution
+
 ---
 
 ## Method 1: Google Cloud Run (Recommended)
@@ -99,10 +106,27 @@ gcloud app browse
 
 ---
 
-## Verification
+## Testing the Prototype on GCP
 
-Once deployed, Cloud Run will provide your live URL (e.g., `https://ps26237-xyz-uc.a.run.app`).
+Once deployed, visit your Cloud Run URL:
 
-1. Open `https://<service-url>/healthz` -> returns `200 ok`.
-2. Open `https://<service-url>/` in your browser.
-3. The interactive web console will load with pre-seeded demo identities (`alice`, `bob`, `carol`).
+1. **Check Status (`/`):**
+   - Health check: `/healthz` returns `200 ok`.
+   - The web console shows all 4 simulated ledger nodes (`sender-org-node`, `independent-auditor-node`, `security-dept-node`, `offsite-backup-node`) and pre-seeded demo identities (`alice`, `bob`, `carol`).
+2. **Encrypt as Sender (`/sender`):**
+   - Drop a test document (e.g. `sample_contract.png`).
+   - Check **`alice`** (and optionally `bob`, `carol`).
+   - Click **"Encrypt and download package"**.
+   - Your browser downloads the `.ps26237` package, and the progress modal automatically dismisses.
+3. **Decrypt as Recipient (`/recipient`):**
+   - Drop the `.ps26237` package.
+   - Select **`alice`**.
+   - Enter passphrase:
+     ```
+     password123
+     ```
+   - Click **"Decrypt, watermark and commit"**.
+   - Download the watermarked document.
+4. **Forensic Trace (`/trace`):**
+   - Drop the decrypted document into the Forensic Trace tab.
+   - The system extracts the DCT watermark, verifies the ledger quorum, validates Alice's signature, and attributes the leak to `alice`!
