@@ -26,3 +26,9 @@ ENV/
 Thumbs.db
 # Local runtime workspaces
 ps26237_workspace/
+
+# Temporary scratch extraction scripts
+run_extract.py
+test_*.py
+test_*.js
+extracted_*.txt

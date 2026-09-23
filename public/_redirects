@@ -1,9 +1,3 @@
-# Netlify static redirects
-/api/*       /.netlify/functions/api/api/:splat       200
-/sender      /.netlify/functions/api/sender           200
-/recipient   /.netlify/functions/api/recipient        200
-/download    /.netlify/functions/api/download         200
-/trace       /.netlify/functions/api/trace            200
-/identities/* /.netlify/functions/api/identities/:splat 200
-/            /.netlify/functions/api/                 200
-/*           /.netlify/functions/api/:splat           200
+# Netlify redirects: Route all requests to the serverless function 'api'
+# Static files in public/ (e.g. /samples/*) are served automatically first.
+/*    /.netlify/functions/api    200
