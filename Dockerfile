@@ -25,4 +25,4 @@ COPY . .
 EXPOSE 8080
 
 # Start with Gunicorn WSGI server (timeout 300s for forensic geometric watermark searches)
-CMD exec gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 300 "wsgi:app"
+CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:${PORT:-8080} --workers 1 --threads 8 --timeout 300 wsgi:app"]

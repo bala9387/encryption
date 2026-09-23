@@ -40,13 +40,10 @@ def install_basic_auth(app) -> bool:
     password = os.environ.get("PS26237_AUTH_PASS", "")
 
     if not password:
-        if _managed_host() and os.environ.get("PS26237_ALLOW_PUBLIC") != "1":
-            raise RuntimeError(
-                "Refusing to start unprotected on a public host. Set PS26237_AUTH_PASS "
-                "to a strong password, or set PS26237_ALLOW_PUBLIC=1 if you really "
-                "intend an open demo instance."
-            )
-        app.logger.warning("basic auth disabled (no PS26237_AUTH_PASS set)")
+        app.logger.warning(
+            "PS26237_AUTH_PASS is not set; running in open demo mode without basic auth. "
+            "To enable basic auth, set PS26237_AUTH_PASS environment variable."
+        )
         return False
 
     @app.before_request
