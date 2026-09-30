@@ -1,0 +1,18 @@
+# Keep the Vercel function bundle small (limit: 250 MB unzipped).
+# Nothing below is needed to serve the web console.
+third_party/
+ledger/fabric/
+output/
+testdata/
+ps26237_workspace/
+docs/*.pptx
+*.pptx
+*.ps26237
+extracted_paper.txt
+run_extract.py
+test_*.py
+test_unzip.js
+Dockerfile
+.dockerignore
+__pycache__/
+**/__pycache__/

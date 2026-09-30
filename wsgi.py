@@ -37,7 +37,7 @@ install_basic_auth(app)
 
 from crypto.pqc import BACKEND, IS_REFERENCE_IMPLEMENTATION
 
-log.info("PS 26237 starting | workspace=%s | ledger=%s | crypto=%s",
+log.info("Quantrace starting | workspace=%s | ledger=%s | crypto=%s",
          ws.root, ws.ledger_backend, BACKEND)
 if IS_REFERENCE_IMPLEMENTATION:
     log.warning("NOT POST-QUANTUM: liboqs is unavailable, so the size-matched "

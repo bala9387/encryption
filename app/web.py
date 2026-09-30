@@ -439,7 +439,14 @@ def create_app(ws: Workspace | None = None) -> Flask:
     app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
 
     def page(title: str, page_id: str, body: str) -> str:
-        from crypto.pqc import MLKEM, MLDSA, BACKEND
+        from crypto.pqc import MLKEM, MLDSA, BACKEND, IS_REFERENCE_IMPLEMENTATION
+        # Never let the classical fallback pass for post-quantum crypto.
+        pqc_banner = ""
+        if IS_REFERENCE_IMPLEMENTATION:
+            pqc_banner = (
+                '<div class="flash" role="alert"><div><b>Not post-quantum.</b> liboqs could not be loaded on '
+                'this host, so keys and signatures use the classical X25519/Ed25519 fallback. Do not present '
+                'this instance as running NIST ML-KEM / ML-DSA.</div></div>')
         try:
             st = ws.ledger_status()
             healthy = st["integrity"]["network_consistent"]
@@ -466,17 +473,17 @@ def create_app(ws: Workspace | None = None) -> Flask:
                           for m in get_flashed_messages())
         return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{e(title)} · PS 26237</title><style>{CSS}</style></head><body>
+<title>{e(title)} · Quantrace</title><style>{CSS}</style></head><body>
 <header><div class="bar">
   <div class="brand"><span class="mark">{svg("fingerprint", 17)}</span>
-    <span>PRAMAAN<small>PS 26237 · attribution console</small></span></div>
+    <span>Quantrace<small>attribution console</small></span></div>
   <nav>{nav}</nav>
   <div class="chips">{env_chip}{ledger_chip}
     <span class="chip">{svg("lock", 13)}{e(MLKEM.algorithm)} · {e(MLDSA.algorithm)}</span>
     <span class="chip">{e(BACKEND)}</span>
   </div>
 </div></header>
-<main>{flashes}{body}</main>
+<main>{pqc_banner}{flashes}{body}</main>
 <div id="busy"><div class="box">
   <button type="button" id="busy-x" aria-label="Close" style="position:absolute;top:10px;right:14px;background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer;line-height:1;padding:4px;border-radius:6px">✕</button>
   <div class="spin" id="busy-spin"></div>

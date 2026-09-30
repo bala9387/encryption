@@ -19,10 +19,18 @@ ML-DSA-65) -- nothing is padded.
 Verified on: Windows 11, Python 3.14.4, liboqs 0.16.0 built from source
 with MSVC 14.50 (VS 2026 Build Tools), liboqs-python 0.16.0.
 
-There is NO classical fallback. An earlier revision used X25519/Ed25519
-as a size-matched stand-in; that was removed so the system can never
-silently run non-quantum-resistant crypto while claiming PQC. If liboqs
-is missing, importing this module fails loudly.
+FALLBACK -- READ THIS. If liboqs cannot be loaded, this module falls back
+to X25519 + Ed25519 padded with SHAKE256 to ML-KEM/ML-DSA byte sizes.
+That fallback is CLASSICAL, NOT QUANTUM-RESISTANT. It exists only so a
+host with no native library still runs. When it is active,
+IS_REFERENCE_IMPLEMENTATION is True, BACKEND says so explicitly, and the
+web UI shows a red "not post-quantum" banner. Never present an instance
+running the fallback as NIST PQC.
+
+Deployments that must be post-quantum ship a prebuilt liboqs:
+  * Vercel: vendor/oqs/lib/liboqs.so (built on Amazon Linux 2023, depends
+    only on libc), loaded via OQS_INSTALL_PATH set in api/index.py.
+  * Containers: the Dockerfile compiles liboqs into the image.
 
 What this does NOT claim: FIPS 140-3 validation of the implementation
 (liboqs is a research/prototyping library, not a validated module), or
@@ -98,7 +106,7 @@ if _HAS_OQS:
         assert _s.details["length_signature"] == ML_DSA_65["signature_bytes"]
 else:
     IS_REFERENCE_IMPLEMENTATION = True
-    BACKEND = "Pure-Python Serverless Emulation (FIPS 203/204 size-matched)"
+    BACKEND = "CLASSICAL FALLBACK (X25519/Ed25519) - NOT post-quantum"
 
 
 def _shake_expand(data: bytes, length: int) -> bytes:

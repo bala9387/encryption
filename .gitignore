@@ -32,3 +32,6 @@ run_extract.py
 test_*.py
 test_*.js
 extracted_*.txt
+
+# Prebuilt liboqs for Vercel (real PQC) - must be committed, see docs/DEPLOY_VERCEL.md
+!vendor/oqs/lib/liboqs.so

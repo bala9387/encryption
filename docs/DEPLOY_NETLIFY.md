@@ -1,6 +1,6 @@
 # Deploying PS 26237 to Netlify
 
-This guide explains how to deploy the **PS 26237 (PRAMAAN)** prototype to **Netlify** for live cloud demonstration, evaluation, or stakeholder reviews.
+This guide explains how to deploy the **PS 26237 (Quantrace)** prototype to **Netlify** for live cloud demonstration, evaluation, or stakeholder reviews.
 
 ---
 
